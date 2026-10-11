@@ -1,0 +1,23 @@
+# /etc/systemd/system/tflexdocscontrol.service
+[Unit]
+Description=TFlexDocsControl - управление службами T-FLEX DOCs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=tflexctl
+Group=tflexctl
+WorkingDirectory=/opt/tflexdocscontrol
+ExecStart=/usr/bin/dotnet /opt/tflexdocscontrol/TFlexDocsControl.Api.dll
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_NOLOGO=1
+Restart=on-failure
+RestartSec=5
+
+# Не включайте NoNewPrivileges=yes: он запрещает sudo, через который выполняются start/stop/restart.
+PrivateTmp=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
