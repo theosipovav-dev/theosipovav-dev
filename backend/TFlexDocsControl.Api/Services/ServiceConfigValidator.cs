@@ -31,6 +31,14 @@ public sealed partial class ServiceConfigValidator : IValidateOptions<ServiceCon
             }
         }
 
+        foreach (var rule in options.Discovery)
+        {
+            if (!PatternRegex().IsMatch(rule.Pattern))
+            {
+                errors.Add($"Некорректный шаблон поиска служб '{rule.Pattern}': ожидается вида 'tflexdocs@*.service'.");
+            }
+        }
+
         return errors.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(errors);
     }
 
@@ -40,4 +48,8 @@ public sealed partial class ServiceConfigValidator : IValidateOptions<ServiceCon
     // Имя unit: без пробелов, не начинается с '-', с суффиксом типа.
     [GeneratedRegex(@"^(?!-)[A-Za-z0-9_.@:\\-]{1,200}\.(service|target|socket|timer)$")]
     private static partial Regex UnitRegex();
+
+    // Шаблон systemctl: те же символы плюс '*', '?', '[', ']'.
+    [GeneratedRegex(@"^(?!-)[A-Za-z0-9_.@:*?\[\]\\-]{1,200}\.service$")]
+    private static partial Regex PatternRegex();
 }

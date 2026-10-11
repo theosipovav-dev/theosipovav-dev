@@ -2,15 +2,26 @@
 # Установка: sudo install -m 0440 deploy/sudoers-tflexdocscontrol /etc/sudoers.d/tflexdocscontrol
 # Проверка:  sudo visudo -cf /etc/sudoers.d/tflexdocscontrol
 #
-# Разрешает пользователю tflexctl только start/stop/restart перечисленных unit-ов без пароля.
+# Разрешает пользователю tflexctl только start/stop/restart указанных unit-ов без пароля.
 # Аргументы должны совпадать в точности с тем, что вызывает backend:
 #   systemctl <start|stop|restart> <unit> --no-pager
-# Добавьте по три строки на каждую службу из ServiceControl:Services.
+# Добавьте по три строки на каждый экземпляр сервера приложений.
 
 Cmnd_Alias TFLEXDOCS_CTL = \
-    /usr/bin/systemctl start tflexdocs.service --no-pager, \
-    /usr/bin/systemctl stop tflexdocs.service --no-pager, \
-    /usr/bin/systemctl restart tflexdocs.service --no-pager
+    /usr/bin/systemctl start tflexdocs-main.service --no-pager, \
+    /usr/bin/systemctl stop tflexdocs-main.service --no-pager, \
+    /usr/bin/systemctl restart tflexdocs-main.service --no-pager, \
+    /usr/bin/systemctl start tflexdocs-test.service --no-pager, \
+    /usr/bin/systemctl stop tflexdocs-test.service --no-pager, \
+    /usr/bin/systemctl restart tflexdocs-test.service --no-pager
+
+# Для экземпляров, найденных по шаблону (ServiceControl:Discovery), можно разрешить шаблон.
+# Внимание: '*' в sudoers совпадает и с пробелами, поэтому такое правило шире, чем кажется.
+# Если набор экземпляров известен заранее, лучше перечислить их явно, как выше.
+# Cmnd_Alias TFLEXDOCS_TPL = \
+#     /usr/bin/systemctl start tflexdocs@*.service --no-pager, \
+#     /usr/bin/systemctl stop tflexdocs@*.service --no-pager, \
+#     /usr/bin/systemctl restart tflexdocs@*.service --no-pager
 
 Defaults:tflexctl !requiretty
 tflexctl ALL=(root) NOPASSWD: TFLEXDOCS_CTL

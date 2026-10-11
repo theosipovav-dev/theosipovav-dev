@@ -6,14 +6,17 @@
 - запуск, остановка и перезапуск;
 - просмотр журналов (journald) с фильтрами по уровню, периоду и тексту, режим реального времени, выгрузка в файл;
 - пользователи с ролями и журнал действий (кто и когда управлял службами);
+- несколько экземпляров сервера приложений T-FLEX DOCs на одном сервере, сгруппированные по экземплярам;
 - данные приложения хранятся во внешней PostgreSQL.
+
+Frontend - отдельный проект, но его сборка кладётся в `wwwroot` backend-проекта. На сервер ставится одно приложение: backend отдаёт и API, и интерфейс.
 
 ## Состав
 
 | Папка | Что внутри |
 |---|---|
 | `backend/` | REST API на ASP.NET Core (.NET 8), EF Core + Npgsql, JWT |
-| `frontend/` | React 18 + Ant Design 5 (JavaScript, Vite) |
+| `frontend/` | React 18 + Ant Design 5 (JavaScript, Vite); сборка кладётся в `backend/TFlexDocsControl.Api/wwwroot` |
 | `deploy/` | unit-файл systemd, правило sudoers, пример production-конфига |
 
 ## Роли
@@ -26,27 +29,55 @@
 
 ## Настройка служб
 
-Список служб задаётся в секции `ServiceControl:Services` конфигурации backend:
+Службы задаются в секции `ServiceControl` конфигурации backend двумя способами, их можно совмещать.
+
+**1. Явный список** (`Services`). Подходит, когда экземпляры известны заранее и оформлены отдельными unit-ами:
 
 ```json
 "ServiceControl": {
-  "UseSudoForControl": true,
-  "UseSudoForJournal": false,
   "Services": [
     {
-      "Id": "tflexdocs-server",
-      "Unit": "tflexdocs.service",
-      "DisplayName": "Сервер приложений T-FLEX DOCs",
-      "Description": "Основная служба",
+      "Id": "tflexdocs-main",
+      "Unit": "tflexdocs-main.service",
+      "DisplayName": "Сервер приложений",
+      "Group": "Основной экземпляр",
       "AllowControl": true
+    },
+    {
+      "Id": "tflexdocs-test",
+      "Unit": "tflexdocs-test.service",
+      "DisplayName": "Сервер приложений",
+      "Group": "Тестовый экземпляр"
     }
   ]
 }
 ```
 
 - `Id` используется в адресах API (`/api/services/{id}`), `Unit` - имя systemd unit-а.
+- `Group` объединяет службы одного экземпляра в интерфейсе (например, сервер приложений и связанные с ним службы). Можно не указывать.
 - `AllowControl: false` оставляет службу только для просмотра.
-- Backend управляет только службами из этого списка; имена unit-ов проверяются при старте.
+
+**2. Поиск по шаблону** (`Discovery`). Подходит для экземпляров, запущенных из шаблонного unit-а (`tflexdocs@main.service`, `tflexdocs@test.service`) или с общим префиксом имени. Новые экземпляры появляются в интерфейсе сами, без правки конфига:
+
+```json
+"ServiceControl": {
+  "DiscoveryCacheSeconds": 30,
+  "Discovery": [
+    {
+      "Pattern": "tflexdocs@*.service",
+      "DisplayName": "Сервер приложений {instance}",
+      "Group": "Экземпляр {instance}",
+      "AllowControl": true
+    }
+  ]
+}
+```
+
+- `{instance}` - часть имени после `@` (для `tflexdocs-*.service` это имя unit-а без `.service`), `{unit}` - полное имя unit-а.
+- Поиск идёт через `systemctl list-units --all` и `systemctl list-unit-files`, результат кэшируется на `DiscoveryCacheSeconds`. Видны запущенные, включённые и недавно работавшие экземпляры.
+- `Id` найденной службы строится из имени unit-а: `tflexdocs@main.service` -> `tflexdocs-main`. Если служба есть и в `Services`, берётся описание из `Services`.
+
+Backend управляет только службами из этих двух источников; имена unit-ов и шаблоны проверяются при старте.
 
 Узнать имена unit-ов на сервере: `systemctl list-units --type=service --all | grep -i tflex`.
 
@@ -74,6 +105,8 @@ npm install
 npm run dev
 ```
 
+`npm run build` собирает фронтенд в `backend/TFlexDocsControl.Api/wwwroot`, после чего `dotnet run` открывает интерфейс на http://localhost:5080 без отдельного dev-сервера.
+
 При первом запуске backend применяет миграции и создаёт администратора `admin` (в Development пароль `admin12345`, в Production - из `Bootstrap:AdminPassword` либо сгенерированный и выведенный в лог). Смените пароль после входа.
 
 Новая миграция после изменения модели:
@@ -94,10 +127,9 @@ sudo dnf install aspnetcore-runtime-8.0
 sudo useradd --system --no-create-home --shell /sbin/nologin tflexctl
 sudo usermod -aG systemd-journal tflexctl
 
-# 3. Сборка (на машине разработчика)
-cd frontend && npm ci && npm run build && cd ..
+# 3. Сборка (на машине разработчика, нужны .NET 8 SDK и Node.js)
+# publish сам выполняет npm ci / npm run build и кладёт фронтенд в publish/wwwroot
 dotnet publish backend/TFlexDocsControl.Api -c Release -o publish
-mkdir -p publish/wwwroot && cp -r frontend/dist/* publish/wwwroot/
 
 # 4. Установка
 sudo mkdir -p /opt/tflexdocscontrol /etc/tflexdocscontrol
@@ -118,7 +150,7 @@ sudo systemctl enable --now tflexdocscontrol
 journalctl -u tflexdocscontrol -f
 ```
 
-Backend сам отдаёт собранный фронтенд из `wwwroot`, поэтому приложение открывается по адресу `http://<сервер>:5080`. Для HTTPS поставьте перед ним nginx (заголовки `X-Forwarded-*` поддерживаются).
+Получается одно приложение: backend отдаёт собранный фронтенд из `wwwroot`, поэтому приложение открывается по адресу `http://<сервер>:5080`. Для HTTPS поставьте перед ним nginx (заголовки `X-Forwarded-*` поддерживаются).
 
 Конфигурация читается из `appsettings.json` рядом с приложением, затем `/etc/tflexdocscontrol/appsettings.json` (имеет приоритет). Файл в `/etc` не затирается при обновлении.
 

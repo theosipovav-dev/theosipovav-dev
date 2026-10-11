@@ -6,6 +6,32 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!--
+    Фронтенд (../../frontend) собирается в wwwroot этого проекта.
+    При dotnet publish он собирается автоматически и попадает в публикацию,
+    так что на сервер ставится одно приложение. Отключить: -p:BuildFrontend=false.
+  -->
+  <PropertyGroup>
+    <FrontendRoot>$(MSBuildProjectDirectory)/../../frontend/</FrontendRoot>
+    <BuildFrontend Condition="'$(BuildFrontend)' == ''">true</BuildFrontend>
+    <!-- wwwroot генерируется сборкой фронтенда, поэтому не участвует в статическом списке файлов проекта
+         (иначе при повторной публикации остаются ссылки на удалённые файлы с прежними хэшами). -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);wwwroot/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <Target Name="PublishFrontend" BeforeTargets="ComputeFilesToPublish" Condition="'$(BuildFrontend)' == 'true' And Exists('$(FrontendRoot)package.json')">
+    <Exec Command="npm ci" WorkingDirectory="$(FrontendRoot)" Condition="!Exists('$(FrontendRoot)node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(FrontendRoot)" />
+    <ItemGroup>
+      <FrontendDistFiles Include="wwwroot/**" />
+      <ResolvedFileToPublish Include="@(FrontendDistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>%(FrontendDistFiles.Identity)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">

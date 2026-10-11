@@ -5,6 +5,8 @@ public sealed record ServiceStatusDto(
     string Unit,
     string DisplayName,
     string? Description,
+    string? Group,
+    bool Discovered,
     bool AllowControl,
     string LoadState,
     string ActiveState,

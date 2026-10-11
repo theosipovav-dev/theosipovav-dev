@@ -87,7 +87,14 @@ export default function ServicesPage() {
       dataIndex: 'displayName',
       render: (_, s) => (
         <Space direction="vertical" size={0}>
-          <Typography.Text strong>{s.displayName}</Typography.Text>
+          <Space size={4}>
+            <Typography.Text strong>{s.displayName}</Typography.Text>
+            {s.discovered && (
+              <Tooltip title="Найдена автоматически по шаблону из конфигурации">
+                <Tag color="geekblue">авто</Tag>
+              </Tooltip>
+            )}
+          </Space>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {s.unit}
           </Typography.Text>
@@ -190,6 +197,8 @@ export default function ServicesPage() {
   ]
 
   const activeCount = services.filter((s) => s.activeState === 'active').length
+  const groups = groupServices(services)
+  const showGroupTitles = groups.length > 1 || groups[0]?.name !== null
 
   return (
     <Card
@@ -216,14 +225,39 @@ export default function ServicesPage() {
         </Space>
       }
     >
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={services}
-        loading={loading && services.length === 0}
-        pagination={false}
-        scroll={{ x: 1000 }}
-      />
+      {services.length === 0 && (
+        <Table rowKey="id" columns={columns} dataSource={[]} loading={loading} pagination={false} />
+      )}
+      {groups.map((g) => {
+        const groupActive = g.items.filter((s) => s.activeState === 'active').length
+        return (
+          <div key={g.name ?? ''} style={{ marginBottom: 24 }}>
+            {showGroupTitles && (
+              <Space style={{ marginBottom: 8 }}>
+                <Typography.Title level={5} style={{ margin: 0 }}>
+                  {g.name ?? 'Без группы'}
+                </Typography.Title>
+                <Badge
+                  count={`${groupActive} / ${g.items.length}`}
+                  style={{ backgroundColor: groupActive === g.items.length ? '#52c41a' : '#faad14' }}
+                />
+              </Space>
+            )}
+            <Table rowKey="id" columns={columns} dataSource={g.items} pagination={false} scroll={{ x: 1000 }} />
+          </div>
+        )
+      })}
     </Card>
   )
+}
+
+/** Группировка по полю group с сохранением порядка из конфигурации. */
+function groupServices(services) {
+  const map = new Map()
+  for (const s of services) {
+    const key = s.group || null
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(s)
+  }
+  return Array.from(map, ([name, items]) => ({ name, items }))
 }

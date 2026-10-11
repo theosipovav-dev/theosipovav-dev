@@ -9,8 +9,6 @@ namespace TFlexDocsControl.Api.Services;
 
 public interface IServiceManager
 {
-    IReadOnlyList<MonitoredService> GetConfigured();
-    MonitoredService? Find(string id);
     Task<ServiceStatusDto> GetStatusAsync(MonitoredService service, CancellationToken ct);
     Task<ServiceActionResultDto> ExecuteAsync(MonitoredService service, ServiceAction action, CancellationToken ct);
     Task<LogsResponseDto> GetLogsAsync(MonitoredService service, LogsQuery query, CancellationToken ct);
@@ -42,11 +40,6 @@ public sealed partial class SystemdServiceManager : IServiceManager
     private ServiceControlOptions Options => _options.CurrentValue;
     private TimeSpan Timeout => TimeSpan.FromSeconds(Math.Max(5, Options.CommandTimeoutSeconds));
 
-    public IReadOnlyList<MonitoredService> GetConfigured() => Options.Services;
-
-    public MonitoredService? Find(string id) =>
-        Options.Services.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase));
-
     public async Task<ServiceStatusDto> GetStatusAsync(MonitoredService service, CancellationToken ct)
     {
         try
@@ -68,6 +61,8 @@ public sealed partial class SystemdServiceManager : IServiceManager
                 service.Unit,
                 DisplayNameOf(service),
                 service.Description,
+                service.Group,
+                service.Discovered,
                 service.AllowControl,
                 props.GetValueOrDefault("LoadState", "unknown"),
                 props.GetValueOrDefault("ActiveState", "unknown"),
@@ -300,7 +295,7 @@ public sealed partial class SystemdServiceManager : IServiceManager
     }
 
     private static ServiceStatusDto Unknown(MonitoredService s, string? error) =>
-        new(s.Id, s.Unit, DisplayNameOf(s), s.Description, s.AllowControl, "unknown", "unknown", "unknown", null, null, null, null, error);
+        new(s.Id, s.Unit, DisplayNameOf(s), s.Description, s.Group, s.Discovered, s.AllowControl, "unknown", "unknown", "unknown", null, null, null, null, error);
 
     private static string DisplayNameOf(MonitoredService s) =>
         string.IsNullOrWhiteSpace(s.DisplayName) ? s.Unit : s.DisplayName;

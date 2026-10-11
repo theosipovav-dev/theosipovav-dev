@@ -12,25 +12,28 @@ namespace TFlexDocsControl.Api.Controllers;
 public sealed class ServicesController : ControllerBase
 {
     private readonly IServiceManager _manager;
+    private readonly IServiceRegistry _registry;
     private readonly IAuditService _audit;
 
-    public ServicesController(IServiceManager manager, IAuditService audit)
+    public ServicesController(IServiceManager manager, IServiceRegistry registry, IAuditService audit)
     {
         _manager = manager;
+        _registry = registry;
         _audit = audit;
     }
 
     [HttpGet]
     public async Task<IReadOnlyList<ServiceStatusDto>> GetAll(CancellationToken ct)
     {
-        var tasks = _manager.GetConfigured().Select(s => _manager.GetStatusAsync(s, ct));
+        var services = await _registry.GetAllAsync(ct);
+        var tasks = services.Select(s => _manager.GetStatusAsync(s, ct));
         return await Task.WhenAll(tasks);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ServiceStatusDto>> Get(string id, CancellationToken ct)
     {
-        var service = _manager.Find(id);
+        var service = await _registry.FindAsync(id, ct);
         if (service is null)
         {
             return NotFound();
@@ -56,7 +59,7 @@ public sealed class ServicesController : ControllerBase
     [HttpGet("{id}/logs")]
     public async Task<ActionResult<LogsResponseDto>> Logs(string id, [FromQuery] LogsQuery query, CancellationToken ct)
     {
-        var service = _manager.Find(id);
+        var service = await _registry.FindAsync(id, ct);
         if (service is null)
         {
             return NotFound();
@@ -74,7 +77,7 @@ public sealed class ServicesController : ControllerBase
 
     private async Task<ActionResult<ServiceActionResultDto>> Execute(string id, ServiceAction action, CancellationToken ct)
     {
-        var service = _manager.Find(id);
+        var service = await _registry.FindAsync(id, ct);
         if (service is null)
         {
             return NotFound();

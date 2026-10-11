@@ -42,6 +42,7 @@ builder.Services.AddDbContext<AppDbContext>(o => o.UseNpgsql(connectionString));
 // ---------- Сервисы ----------
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<IProcessRunner, ProcessRunner>();
+builder.Services.AddSingleton<IServiceRegistry, ServiceRegistry>();
 builder.Services.AddSingleton<IServiceManager, SystemdServiceManager>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();

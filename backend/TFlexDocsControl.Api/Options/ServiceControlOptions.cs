@@ -28,8 +28,17 @@ public sealed class ServiceControlOptions
     /// <summary>Максимальное число строк журнала за один запрос.</summary>
     public int MaxLogLines { get; set; } = 2000;
 
-    /// <summary>Отслеживаемые службы.</summary>
+    /// <summary>Отслеживаемые службы, перечисленные явно.</summary>
     public List<MonitoredService> Services { get; set; } = new();
+
+    /// <summary>
+    /// Автоматический поиск служб по шаблону имени unit-а, например "tflexdocs@*.service".
+    /// Удобно, когда на сервере запущено несколько экземпляров T-FLEX DOCs.
+    /// </summary>
+    public List<ServiceDiscoveryRule> Discovery { get; set; } = new();
+
+    /// <summary>Как часто обновлять список найденных по шаблону служб, секунд.</summary>
+    public int DiscoveryCacheSeconds { get; set; } = 30;
 }
 
 public sealed class MonitoredService
@@ -45,6 +54,34 @@ public sealed class MonitoredService
 
     public string? Description { get; set; }
 
+    /// <summary>
+    /// Группа для отображения, например имя экземпляра сервера приложений ("Основной", "Тестовый").
+    /// Службы одной группы показываются вместе.
+    /// </summary>
+    public string? Group { get; set; }
+
     /// <summary>Разрешены ли start/stop/restart для этой службы (иначе только просмотр).</summary>
+    public bool AllowControl { get; set; } = true;
+
+    /// <summary>Служба найдена по шаблону, а не перечислена явно.</summary>
+    public bool Discovered { get; set; }
+}
+
+public sealed class ServiceDiscoveryRule
+{
+    /// <summary>Шаблон имени unit-а в синтаксисе systemctl: "tflexdocs@*.service", "tflexdocs-*.service".</summary>
+    public string Pattern { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Шаблон отображаемого имени. {instance} - часть имени после '@' (или имя unit-а без ".service"),
+    /// {unit} - полное имя unit-а.
+    /// </summary>
+    public string DisplayName { get; set; } = "{unit}";
+
+    public string? Description { get; set; }
+
+    /// <summary>Шаблон группы, поддерживает {instance} и {unit}. Пусто - группа "Найденные службы".</summary>
+    public string? Group { get; set; }
+
     public bool AllowControl { get; set; } = true;
 }
